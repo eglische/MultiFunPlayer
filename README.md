@@ -1,5 +1,5 @@
 <div align="center">
-    <h1>MultiFunPlayer</h1>
+    <h1>MultiFunPlayer.networked</h1>
     <br/>
     <img src="Assets/screenshot.png" style="border-radius: 8px"/>
 </div>
@@ -8,8 +8,8 @@
 
 # About
 
-This is a Fork of the MultiFunPlayer - **thank you Yooii for your work on the original**
-* your MFP can now be controlled by somebody else, or AI - All via a universal input across Lan and Wan: **have fun via MQTT**
+This is a Fork of the MultiFunPlayer - **thank you Yoooi for your work on the original**
+* your MFP can now be controlled by somebody else, or AI - All via a universal input method across LAN and WAN: **have fun via MQTT**
 
 # Downloads
 
