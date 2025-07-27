@@ -1,0 +1,143 @@
+[
+    {
+        "id": "1b33e19c6d1c1da7",
+        "type": "mqtt out",
+        "z": "2779620a3a814a03",
+        "name": "",
+        "topic": "multifunplayer/actions",
+        "qos": "2",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt_broker",
+        "x": 1380,
+        "y": 1860,
+        "wires": []
+    },
+    {
+        "id": "01d485696a9ca5fe",
+        "type": "function",
+        "z": "2779620a3a814a03",
+        "name": "function 21",
+        "func": "const payload = msg.payload;\nconst out = [];\nconst axisStates = context.get(\"axisStates\") || {};  // Store state per axis\n\n// Default to L0\nconst axis = (payload.Axis || \"L0\").toString();\n\n// Helper to create action message\nfunction actionMessage(action, values) {\n    return {\n        payload: {\n            Action: action,\n            Arguments: values.map(v => ({ Value: v }))\n        }\n    };\n}\n\n// Stop command: stop all tracked axes\nif (payload.Stop === true) {\n    for (const a in axisStates) {\n        out.push(actionMessage(\"Axis::MotionProviderBlend::Set\", [a, 1]));\n        out.push(actionMessage(\"MotionProvider::Pattern::Speed::Set\", [a, 1]));\n        out.push(actionMessage(\"MotionProvider::Pattern::Minimum::Set\", [a, 0]));\n        out.push(actionMessage(\"MotionProvider::Pattern::Maximum::Set\", [a, 0]));\n        axisStates[a].stopped = true;\n    }\n    node.status({ fill: \"red\", shape: \"ring\", text: \"🛑 All axes stopped\" });\n    context.set(\"axisStates\", axisStates);\n    return [out];\n}\n\n// Resume command: resume previously stopped axes with last known values\nif (payload.Resume === true) {\n    for (const a in axisStates) {\n        const state = axisStates[a];\n        if (state.stopped === true) {\n            if (state.motion === \"Pattern\") {\n                out.push(actionMessage(\"Axis::MotionProviderBlend::Set\", [a, 1]));\n                out.push(actionMessage(\"MotionProvider::Pattern::Speed::Set\", [a, state.speed]));\n                out.push(actionMessage(\"MotionProvider::Pattern::Minimum::Set\", [a, state.min]));\n                out.push(actionMessage(\"MotionProvider::Pattern::Maximum::Set\", [a, state.max]));\n                node.status({ fill: \"green\", shape: \"dot\", text: `▶️ Resume ${a}: Pattern ${state.speed} (${state.min}–${state.max})` });\n            } else if (state.motion === \"Funscript\") {\n                out.push(actionMessage(\"MotionProvider::Pattern::Maximum::Set\", [a, 1]));  // restore range\n                out.push(actionMessage(\"Axis::MotionProviderBlend::Set\", [a, 0]));         // funscript mode\n                node.status({ fill: \"blue\", shape: \"dot\", text: `▶️ Resume ${a}: Funscript` });\n            }\n            state.stopped = false;\n        }\n    }\n    context.set(\"axisStates\", axisStates);\n    return [out];\n}\n\n// Normal motion update\nconst motion = payload.Motion || \"Pattern\";\nconst motionMode = motion === \"Funscript\" ? 0 : 1;\n\n// Store/track state\nconst speed = Math.max(0, Math.min(10000, +payload.Speed || 0)) / 100;\nconst min = Math.max(0, Math.min(100, +payload.Min || 0)) / 100;\nconst max = Math.max(0, Math.min(100, +payload.Max || 0)) / 100;\n\naxisStates[axis] = axisStates[axis] || {};\naxisStates[axis].motion = motion;\naxisStates[axis].stopped = false;\n\nout.push(actionMessage(\"Axis::MotionProviderBlend::Set\", [axis, motionMode]));\n\nif (motion === \"Pattern\") {\n    out.push(actionMessage(\"MotionProvider::Pattern::Speed::Set\", [axis, speed]));\n    out.push(actionMessage(\"MotionProvider::Pattern::Minimum::Set\", [axis, min]));\n    out.push(actionMessage(\"MotionProvider::Pattern::Maximum::Set\", [axis, max]));\n\n    axisStates[axis].speed = speed;\n    axisStates[axis].min = min;\n    axisStates[axis].max = max;\n\n    node.status({ fill: \"green\", shape: \"dot\", text: `🟢 ${axis}: Pattern ${speed} (${min}–${max})` });\n} else {\n    node.status({ fill: \"blue\", shape: \"dot\", text: `🔵 ${axis}: Funscript` });\n}\n\n// Save state\ncontext.set(\"axisStates\", axisStates);\n\n// Output all actions as separate MQTT messages\nreturn [out];\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 890,
+        "y": 1860,
+        "wires": [
+            [
+                "1b33e19c6d1c1da7"
+            ]
+        ]
+    },
+    {
+        "id": "1ecfd33826beb6c2",
+        "type": "inject",
+        "z": "2779620a3a814a03",
+        "name": "Stop",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{   \"Stop\": true }",
+        "payloadType": "json",
+        "x": 570,
+        "y": 1820,
+        "wires": [
+            [
+                "01d485696a9ca5fe"
+            ]
+        ]
+    },
+    {
+        "id": "cf5e5a9f73535091",
+        "type": "inject",
+        "z": "2779620a3a814a03",
+        "name": "speed5",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"Speed\":50,\"Motion\":\"Pattern\",\"Min\":20,\"Max\":80}",
+        "payloadType": "json",
+        "x": 570,
+        "y": 1860,
+        "wires": [
+            [
+                "01d485696a9ca5fe"
+            ]
+        ]
+    },
+    {
+        "id": "c408e795981f732a",
+        "type": "inject",
+        "z": "2779620a3a814a03",
+        "name": "Funscript",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"Motion\":\"Funscript\"}",
+        "payloadType": "json",
+        "x": 580,
+        "y": 1900,
+        "wires": [
+            [
+                "01d485696a9ca5fe"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_broker",
+        "type": "mqtt-broker",
+        "name": "Local MQTT",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "NodeRed_Client",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    }
+]
