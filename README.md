@@ -13,9 +13,7 @@ This is a Fork of the MultiFunPlayer - **thank you Yoooi for your work on the or
 
 # Downloads
 
-* [![release](https://img.shields.io/github/v/release/Yoooi0/MultiFunPlayer?logo=github&label=latest%20release&labelColor=blue&color=blue)](https://github.com/Yoooi0/MultiFunPlayer/releases/latest)
-* [![pre-release](https://img.shields.io/github/actions/workflow/status/Yoooi0/MultiFunPlayer/ci.yml?logo=github&labelColor=green&color=green&label=latest%20pre-release)](https://github.com/Yoooi0/MultiFunPlayer/actions)
-* [![patreon](https://img.shields.io/badge/patreon-orange?logo=patreon)](https://www.patreon.com/yoooi)
+* [![release](https://img.shields.io/github/v/release/Yoooi0/MultiFunPlayer?logo=github&label=latest%20release&labelColor=blue&color=blue)](https://github.com/eglische/MultiFunPlayer/releases/latest)
 
 # Patreon only features
 
