@@ -24,9 +24,9 @@ Steps:
 (Optional) Test it's working:
 Open two Command Prompts and run:
 
-    Subscriber:
+Subscriber:
 
-mosquitto_sub -t test
+        mosquitto_sub -t test
 
 Publisher:
 
@@ -36,19 +36,21 @@ Publisher:
 
 Steps:
 
-    Install Node.js (LTS version) from:
-    👉 https://nodejs.org/
+Install Node.js (LTS version) from:
 
-    Open Command Prompt as Administrator and run:
+    https://nodejs.org/
 
-npm install -g --unsafe-perm node-red
+Open Command Prompt as Administrator and run:
+
+    npm install -g --unsafe-perm node-red
 
 Start Node-RED:
 
     node-red
 
-    Open your browser to access the editor:
-    👉 http://localhost:1880
+Open your browser to access the editor:
+
+    http://localhost:1880
 
 3. Import Flow File: example_MFP.networked.json
 
