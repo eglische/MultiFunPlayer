@@ -7,7 +7,7 @@ using System.ComponentModel;
 
 namespace MultiFunPlayer.Shortcut;
 
-internal interface IShortcutActionConfiguration
+public interface IShortcutActionConfiguration
 {
     string Name { get; }
     IReadOnlyList<IShortcutSetting> Settings { get; }

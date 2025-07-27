@@ -6,13 +6,13 @@ using Stylet;
 
 namespace MultiFunPlayer.Shortcut;
 
-internal interface IShortcutActionResolver
+public interface IShortcutActionResolver
 {
     IShortcutAction GetAction(string actionName);
     bool TryGetAction(string actionName, out IShortcutAction action);
 }
 
-internal interface IShortcutManager : IShortcutActionResolver, IDisposable
+public interface IShortcutManager : IShortcutActionResolver, IDisposable
 {
     bool HandleGestures { get; set; }
     IReadOnlyObservableConcurrentCollection<string> AvailableActions { get; }
@@ -63,7 +63,7 @@ internal interface IShortcutManager : IShortcutActionResolver, IDisposable
     IShortcutActionConfiguration CreateShortcutActionConfigurationInstance(string actionName);
 }
 
-internal sealed class ShortcutManager : IShortcutManager, IHandle<IInputGesture>
+public sealed class ShortcutManager : IShortcutManager, IHandle<IInputGesture>
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 

@@ -2,7 +2,7 @@
 
 namespace MultiFunPlayer.Shortcut;
 
-internal interface IShortcutAction
+public interface IShortcutAction
 {
     ValueTask Invoke(params object[] arguments);
     ValueTask Invoke(IShortcutActionConfiguration actionConfiguration, IInputGestureData gestureData);

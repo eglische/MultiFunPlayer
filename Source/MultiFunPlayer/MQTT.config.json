@@ -1,0 +1,10 @@
+{
+  "Broker": "localhost:1883",
+  "Username": "mqtt_user",
+  "Password": "mqtt_pass",
+  "Topic": "multifunplayer/actions",
+  "ClientId": "MultiFunMQTTClient",
+  "KeepAliveSeconds": 60,
+  "AutoReconnect": true,
+  "Debug": true
+}

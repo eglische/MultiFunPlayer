@@ -3,7 +3,7 @@ using System.Collections;
 
 namespace MultiFunPlayer.Shortcut;
 
-internal interface IShortcutSetting
+public interface IShortcutSetting
 {
     object Value { get; set; }
     string Label { get; init; }

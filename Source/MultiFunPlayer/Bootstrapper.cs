@@ -1,4 +1,4 @@
-using MaterialDesignThemes.Wpf;
+﻿using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
@@ -7,6 +7,7 @@ using MultiFunPlayer.Input.TCode;
 using MultiFunPlayer.Input.XInput;
 using MultiFunPlayer.MediaSource;
 using MultiFunPlayer.MotionProvider;
+using MultiFunPlayer.Mqtt;
 using MultiFunPlayer.OutputTarget;
 using MultiFunPlayer.Plugin;
 using MultiFunPlayer.Property;
@@ -204,6 +205,7 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
         }
     }
 
+    private MqttActionService _mqttService;
     protected override void Launch()
     {
         Logger.Debug("Bootstrapper Launch");
@@ -212,9 +214,6 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
 
         _ = Container.Get<RawInputProcessor>();
         _ = Container.Get<XInputProcessor>();
-
-        //TODO: temporary fix due to SettingsViewModel IoC binding causing output targets
-        //      to be initialized after shortcuts and clearing all output target actions
         _ = Container.Get<OutputTargetViewModel>();
         _ = RootViewModel;
 
@@ -224,9 +223,10 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
 
         DialogHelper.Initialize(Container);
 
+        InitializeMqtt(); // ⬅️ Add this line
+
         base.Launch();
     }
-
     protected override void OnLaunch()
     {
         Logger.Debug("Bootstrapper OnLaunch");
@@ -317,6 +317,24 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
         var styletLoggerManager = Container.Get<IStyletLoggerManager>();
         Stylet.Logging.LogManager.LoggerFactory = styletLoggerManager.GetLogger;
         Stylet.Logging.LogManager.Enabled = true;
+    }
+
+    private async void InitializeMqtt()
+    {
+        try
+        {
+            var runner = Container.Get<IShortcutActionRunner>();
+            var shortcutManager = Container.Get<IShortcutManager>();
+
+            _mqttService = new MqttActionService(runner, shortcutManager);
+            await _mqttService.StartAsync();
+
+            Logger.Info("MqttActionService started");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Failed to start MqttActionService");
+        }
     }
 
     private bool ConfigureLogging(JObject settings)

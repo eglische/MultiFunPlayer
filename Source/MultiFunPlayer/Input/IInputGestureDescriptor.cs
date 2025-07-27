@@ -1,5 +1,5 @@
 ﻿namespace MultiFunPlayer.Input;
 
-internal interface IInputGestureDescriptor;
+public interface IInputGestureDescriptor;
 internal interface ISimpleInputGestureDescriptor : IInputGestureDescriptor;
 internal interface IAxisInputGestureDescriptor : IInputGestureDescriptor;

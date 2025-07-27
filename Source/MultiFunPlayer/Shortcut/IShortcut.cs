@@ -1,4 +1,4 @@
-using MultiFunPlayer.Common;
+﻿using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
 using Newtonsoft.Json;
 using PropertyChanged;
@@ -6,7 +6,7 @@ using System.Collections.Concurrent;
 
 namespace MultiFunPlayer.Shortcut;
 
-internal interface IShortcut : IDisposable
+public interface IShortcut : IDisposable
 {
     string Name { get; }
     IInputGestureDescriptor Gesture { get; }

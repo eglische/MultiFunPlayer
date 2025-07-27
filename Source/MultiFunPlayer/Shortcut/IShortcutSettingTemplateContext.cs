@@ -2,7 +2,7 @@
 
 namespace MultiFunPlayer.Shortcut;
 
-internal interface IShortcutSettingTemplateContext
+public interface IShortcutSettingTemplateContext
 {
     string StringFormat { get; }
 
