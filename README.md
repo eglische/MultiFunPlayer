@@ -8,7 +8,8 @@
 
 # About
 
-MultiFunPlayer synchronizes your devices with video files using scripts. The player has the ability to synchronize multiple devices with multiple scripts at the same time enabling enhanced experience.
+This is a Fork of the MultiFunPlayer - **thank you Yooii for your work on the original**
+* your MFP can now be controlled by somebody else, or AI - All via a universal input across Lan and Wan: **have fun via MQTT**
 
 # Downloads
 
@@ -44,7 +45,14 @@ MultiFunPlayer synchronizes your devices with video files using scripts. The pla
 * Supports script **bookmarks and chapters**
 * True **portable app**, no files are created/edited outside of the executable folder
 
+# Additional features (this fork)
+* MQTT Implementation for **remote control or remote play** and **AI control via Noxy-RED.core or Noxy-RED.standalone**
+* Also enables you to use platforms like **xtoys.app** to be able to drive your MFP
+
+
 # How To
+
+The MQTT Part will **be documented soon**
 
 To synchronize with videos:
 
