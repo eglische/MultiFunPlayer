@@ -21,8 +21,8 @@
         "correl": "",
         "expiry": "",
         "broker": "15376ac01e2f58cc",
-        "x": 1300,
-        "y": 760,
+        "x": 1240,
+        "y": 540,
         "wires": []
     },
     {
@@ -37,8 +37,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 980,
-        "y": 760,
+        "x": 920,
+        "y": 540,
         "wires": [
             [
                 "a968c40a1415dd39"
@@ -51,8 +51,8 @@
         "z": "f37b3fa5bbc5e0b0",
         "name": "Speed Controller for Vibration Toys like Lovense MAX 2",
         "info": "",
-        "x": 1060,
-        "y": 700,
+        "x": 1000,
+        "y": 480,
         "wires": []
     },
     {
@@ -72,8 +72,8 @@
         "topic": "",
         "payload": "faster",
         "payloadType": "str",
-        "x": 570,
-        "y": 680,
+        "x": 510,
+        "y": 460,
         "wires": [
             [
                 "5811d6d337099cb8"
@@ -97,8 +97,8 @@
         "topic": "",
         "payload": "slower",
         "payloadType": "str",
-        "x": 570,
-        "y": 720,
+        "x": 510,
+        "y": 500,
         "wires": [
             [
                 "5811d6d337099cb8"
@@ -122,8 +122,8 @@
         "topic": "",
         "payload": "stop",
         "payloadType": "str",
-        "x": 570,
-        "y": 760,
+        "x": 510,
+        "y": 540,
         "wires": [
             [
                 "5811d6d337099cb8"
@@ -147,8 +147,8 @@
         "topic": "",
         "payload": "constriction_soft",
         "payloadType": "str",
-        "x": 540,
-        "y": 960,
+        "x": 480,
+        "y": 740,
         "wires": [
             [
                 "5811d6d337099cb8"
@@ -172,8 +172,8 @@
         "topic": "",
         "payload": "constriction_medium",
         "payloadType": "str",
-        "x": 530,
-        "y": 1000,
+        "x": 470,
+        "y": 780,
         "wires": [
             [
                 "5811d6d337099cb8"
@@ -197,8 +197,8 @@
         "topic": "",
         "payload": "constriction_hard",
         "payloadType": "str",
-        "x": 540,
-        "y": 1040,
+        "x": 480,
+        "y": 820,
         "wires": [
             [
                 "5811d6d337099cb8"
@@ -222,8 +222,8 @@
         "topic": "",
         "payload": "speedslow",
         "payloadType": "str",
-        "x": 580,
-        "y": 800,
+        "x": 520,
+        "y": 580,
         "wires": [
             [
                 "5811d6d337099cb8"
@@ -247,8 +247,8 @@
         "topic": "",
         "payload": "speedmedium",
         "payloadType": "str",
-        "x": 590,
-        "y": 840,
+        "x": 530,
+        "y": 620,
         "wires": [
             [
                 "5811d6d337099cb8"
@@ -272,8 +272,8 @@
         "topic": "",
         "payload": "speedfast",
         "payloadType": "str",
-        "x": 580,
-        "y": 880,
+        "x": 520,
+        "y": 660,
         "wires": [
             [
                 "5811d6d337099cb8"
