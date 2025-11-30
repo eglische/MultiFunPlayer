@@ -1,8 +1,459 @@
 [
     {
-        "id": "1b33e19c6d1c1da7",
+        "id": "f37b3fa5bbc5e0b0",
+        "type": "tab",
+        "label": "Flow 5",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "a968c40a1415dd39",
         "type": "mqtt out",
-        "z": "2779620a3a814a03",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "multifunplayer/actions",
+        "topic": "multifunplayer/actions",
+        "qos": "2",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "15376ac01e2f58cc",
+        "x": 1300,
+        "y": 760,
+        "wires": []
+    },
+    {
+        "id": "5811d6d337099cb8",
+        "type": "function",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "SpeedControllerV2 Vibrator",
+        "func": "// === State ===\nlet lastStep = context.get(\"lastStep\") || 0; // 0 = stop, 1..20 = active steps\n\n// === Constants ===\nconst L0 = \"L0\"; // speed axis\nconst L1 = \"L1\"; // constriction axis\nconst TOTAL_STEPS = 20;\nconst STEP_HALF_WIDTH = 0.01; // -> min/max window ≈ 0.02 wide\nconst CMD = (msg.payload || \"\").toString().trim().toLowerCase();\n\n// Helper to build a JSON command message (same format as json_based_commands.txt)\nfunction action(actionName, values) {\n    return {\n        payload: {\n            Action: actionName,\n            Arguments: values.map(v => ({ Value: v }))\n        }\n    };\n}\n\nconst out = [];\n\n// --- Helpers ---\n\nfunction setPatternModeFor(axis) {\n    // Make sure axis is in Pattern mode (same API as in json_based_commands.txt)\n    out.push(action(\"Axis::MotionProviderBlend::Set\", [axis, 1]));\n    out.push(action(\"MotionProvider::Pattern::Pattern::Set\", [axis, \"Triangle\"]));\n    out.push(action(\"Axis::MotionProvider::Set\", [axis, \"Pattern\"]));\n}\n\nfunction applySpeedStep(step) {\n    // step 0 = STOP\n    if (step === 0) {\n        setPatternModeFor(L0);\n        out.push(action(\"MotionProvider::Pattern::Speed::Set\", [L0, 0.0]));\n        out.push(action(\"MotionProvider::Pattern::Minimum::Set\", [L0, 0.0]));\n        out.push(action(\"MotionProvider::Pattern::Maximum::Set\", [L0, 0.0]));\n        node.status({ fill: \"red\", shape: \"dot\", text: \"Speed: STOP\" });\n        return;\n    }\n\n    // 1..20 → position in [0.0, 1.0]\n    // linear mapping; mid steps cluster around 0.5\n    const fraction = (step - 1) / (TOTAL_STEPS - 1); // 0..1\n    let min = fraction - STEP_HALF_WIDTH;\n    let max = fraction + STEP_HALF_WIDTH;\n\n    // Clamp to [0, 1]\n    min = Math.max(0.0, Math.min(1.0, min));\n    max = Math.max(0.0, Math.min(1.0, max));\n\n    setPatternModeFor(L0);\n    // \"Speed\" of the pattern itself; L0 position comes from min/max window\n    out.push(action(\"MotionProvider::Pattern::Speed::Set\", [L0, 1.0]));\n    out.push(action(\"MotionProvider::Pattern::Minimum::Set\", [L0, min]));\n    out.push(action(\"MotionProvider::Pattern::Maximum::Set\", [L0, max]));\n\n    node.status({\n        fill: \"green\",\n        shape: \"dot\",\n        text: `Speed step ${step} -> [${min.toFixed(2)}, ${max.toFixed(2)}]`\n    });\n}\n\nfunction randomInt(min, max) {\n    return Math.floor(Math.random() * (max - min + 1)) + min;\n}\n\nfunction applyConstriction(level) {\n    // level: 1, 2, 3\n    const constrictionMap = {\n        1: { min: 0.0, max: 0.01 },\n        2: { min: 0.49, max: 0.51 },\n        3: { min: 0.99, max: 1.0 }\n    };\n\n    const mapping = constrictionMap[level];\n    if (!mapping) {\n        node.status({ fill: \"red\", shape: \"dot\", text: \"Invalid constriction level\" });\n        return;\n    }\n\n    setPatternModeFor(L1);\n    out.push(action(\"MotionProvider::Pattern::Speed::Set\", [L1, 1.0]));\n    out.push(action(\"MotionProvider::Pattern::Minimum::Set\", [L1, mapping.min]));\n    out.push(action(\"MotionProvider::Pattern::Maximum::Set\", [L1, mapping.max]));\n\n    node.status({\n        fill: \"blue\",\n        shape: \"dot\",\n        text: `Constriction ${level} -> [${mapping.min.toFixed(2)}, ${mapping.max.toFixed(2)}]`\n    });\n}\n\n// --- Command handling ---\n\nswitch (CMD) {\n    case \"faster\":\n        if (lastStep < TOTAL_STEPS) {\n            lastStep += 1;\n        }\n        applySpeedStep(lastStep);\n        break;\n\n    case \"slower\":\n        if (lastStep > 1) {\n            lastStep -= 1;\n        }\n        applySpeedStep(lastStep);\n        break;\n\n    case \"stop\":\n        lastStep = 0;\n        applySpeedStep(lastStep);\n        break;\n\n    case \"speedslow\":\n        // lower range of steps\n        lastStep = randomInt(1, 7);\n        applySpeedStep(lastStep);\n        break;\n\n    case \"speedmedium\":\n        // mid range\n        lastStep = randomInt(8, 14);\n        applySpeedStep(lastStep);\n        break;\n\n    case \"speedfast\":\n        // upper range\n        lastStep = randomInt(15, 20);\n        applySpeedStep(lastStep);\n        break;\n\n    case \"constriction_soft\":\n        applyConstriction(1);\n        break;\n\n    case \"constriction_medium\":\n        applyConstriction(2);\n        break;\n\n    case \"constriction_hard\":\n        applyConstriction(3);\n        break;\n\n    default:\n        node.status({ fill: \"grey\", shape: \"ring\", text: `Unknown command: ${CMD}` });\n        return null;\n}\n\n// Persist state\ncontext.set(\"lastStep\", lastStep);\n\n// Single output: array of JSON commands\nreturn [out];\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 980,
+        "y": 760,
+        "wires": [
+            [
+                "a968c40a1415dd39"
+            ]
+        ]
+    },
+    {
+        "id": "eb2a5b77781b0992",
+        "type": "comment",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "Speed Controller for Vibration Toys like Lovense MAX 2",
+        "info": "",
+        "x": 1060,
+        "y": 700,
+        "wires": []
+    },
+    {
+        "id": "cbee34d771139c42",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "faster",
+        "payloadType": "str",
+        "x": 570,
+        "y": 680,
+        "wires": [
+            [
+                "5811d6d337099cb8"
+            ]
+        ]
+    },
+    {
+        "id": "47d4e3b59113eee4",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "slower",
+        "payloadType": "str",
+        "x": 570,
+        "y": 720,
+        "wires": [
+            [
+                "5811d6d337099cb8"
+            ]
+        ]
+    },
+    {
+        "id": "265f8742beb41981",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "stop",
+        "payloadType": "str",
+        "x": 570,
+        "y": 760,
+        "wires": [
+            [
+                "5811d6d337099cb8"
+            ]
+        ]
+    },
+    {
+        "id": "dd3decf12d9cc3ad",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "constriction_soft",
+        "payloadType": "str",
+        "x": 540,
+        "y": 960,
+        "wires": [
+            [
+                "5811d6d337099cb8"
+            ]
+        ]
+    },
+    {
+        "id": "02477c03c92034d4",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "constriction_medium",
+        "payloadType": "str",
+        "x": 530,
+        "y": 1000,
+        "wires": [
+            [
+                "5811d6d337099cb8"
+            ]
+        ]
+    },
+    {
+        "id": "43f9117aa3d55989",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "constriction_hard",
+        "payloadType": "str",
+        "x": 540,
+        "y": 1040,
+        "wires": [
+            [
+                "5811d6d337099cb8"
+            ]
+        ]
+    },
+    {
+        "id": "e15db682d4dab4ab",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "speedslow",
+        "payloadType": "str",
+        "x": 580,
+        "y": 800,
+        "wires": [
+            [
+                "5811d6d337099cb8"
+            ]
+        ]
+    },
+    {
+        "id": "d9f4b9e7b7eb7e52",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "speedmedium",
+        "payloadType": "str",
+        "x": 590,
+        "y": 840,
+        "wires": [
+            [
+                "5811d6d337099cb8"
+            ]
+        ]
+    },
+    {
+        "id": "e966a26a5b6e5811",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "speedfast",
+        "payloadType": "str",
+        "x": 580,
+        "y": 880,
+        "wires": [
+            [
+                "5811d6d337099cb8"
+            ]
+        ]
+    },
+    {
+        "id": "cc8f2d1ecc191b9f",
+        "type": "function",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "SpeedControllerV4 Linear",
+        "func": "const command = (msg.payload || \"\").toString().trim().toLowerCase();\nconst L0 = \"L0\";\nconst R0 = \"R0\";\nconst A2 = \"A2\"; // NEW: Axis for lube routine\nconst out = [];\n\n// R0 runs slower than L0\nconst R0_SPEED_FACTOR = 0.5;\n\n// Helper to build command message\nfunction action(action, values) {\n    return {\n        payload: {\n            Action: action,\n            Arguments: values.map(v => ({ Value: v }))\n        }\n    };\n}\n\n// Basic validation and parse\nif (!command.startsWith(\"stroker_robot:\")) {\n    node.status({ fill: \"grey\", shape: \"ring\", text: \"Unknown input\" });\n    return null;\n}\n\nconst parts = command.split(\":\");\nif (parts.length !== 3) {\n    node.status({ fill: \"red\", shape: \"dot\", text: \"Invalid format\" });\n    return null;\n}\n\nconst cmdType = parts[1];  // stroke_speed | twist_speed | lube\nconst cmdLevel = parts[2]; // stop | very_slow | slow | medium | fast | very_fast | (unused for lube)\n\n// SPECIAL: Lube routine (A2 axis)\n// Sequence:\n// 1) Set A2 to Pattern mode (Triangle), Speed=100, Maximum=100%\n// 2) Wait 5 seconds\n// 3) Set Maximum=0%\n// 4) Set Speed=0 (stop)\nif (cmdType === \"lube\") {\n    const startBatch = [];\n    // Ensure A2 is in Pattern mode\n    //startBatch.push(action(\"Axis::MotionProviderBlend::Set\", [A2, 1]));\n    //startBatch.push(action(\"MotionProvider::Pattern::Pattern::Set\", [A2, \"Triangle\"]));\n    //startBatch.push(action(\"Axis::MotionProvider::Set\", [A2, \"Pattern\"]));\n\n    // Step 1: Speed=100, Max=100%\n    startBatch.push(action(\"MotionProvider::Pattern::Speed::Set\", [A2, 1]));\n    startBatch.push(action(\"MotionProvider::Pattern::Maximum::Set\", [A2, 1.0]));\n\n    node.send([startBatch]);\n    node.status({ fill: \"green\", shape: \"dot\", text: \"lube → A2: start (Speed 100, Max 100%)\" });\n\n    // Step 2 & 3 after 5s: Max=0%\n    setTimeout(() => {\n        const retractBatch = [\n            action(\"MotionProvider::Pattern::Maximum::Set\", [A2, 0])\n        ];\n        node.send([retractBatch]);\n        node.status({ fill: \"yellow\", shape: \"ring\", text: \"lube → A2: retract (Max 0%)\" });\n\n        // Step 4 shortly after: Speed=0 (stop)\n        setTimeout(() => {\n            const stopBatch = [\n                action(\"MotionProvider::Pattern::Speed::Set\", [A2, 0.0])\n            ];\n            node.send([stopBatch]);\n            node.status({ fill: \"grey\", shape: \"dot\", text: \"lube → A2: done (Speed 0)\" });\n        }, 150);\n    }, 5000);\n\n    return null; // Using async node.send for the lube sequence\n}\n\n// Axis per command type\nconst axisForType = {\n    \"stroke_speed\": L0,\n    \"twist_speed\": R0\n};\nconst targetAxis = axisForType[cmdType];\nif (!targetAxis) {\n    node.status({ fill: \"red\", shape: \"dot\", text: `Invalid command: ${cmdType}` });\n    return null;\n}\n\n// Base speed mapping (L0 reference)\nconst speedMap = {\n    stop: { speed: 1.0, min: 0.0, max: 0.0, label: \"STOP\" },\n    very_slow: { speed: 1.0, min: 0.0, max: 1.0, label: \"Very Slow\" },\n    slow: { speed: 2.5, min: 0.0, max: 1.0, label: \"Slow\" },\n    medium: { speed: 4.5, min: 0.0, max: 1.0, label: \"Medium\" },\n    fast: { speed: 6.5, min: 0.0, max: 1.0, label: \"Fast\" },\n    very_fast: { speed: 9.0, min: 0.0, max: 1.0, label: \"Very Fast\" }\n};\n\nconst mapping = speedMap[cmdLevel];\nif (!mapping) {\n    node.status({ fill: \"red\", shape: \"dot\", text: `Invalid speed: ${cmdLevel}` });\n    return null;\n}\n\n// Compute effective speed per axis (R0 slower)\nconst effectiveSpeed =\n    targetAxis === R0\n        ? (mapping.speed === 1.0 && mapping.min === 0.0 && mapping.max === 0.0)\n            ? mapping.speed // keep STOP behavior unchanged\n            : mapping.speed * R0_SPEED_FACTOR\n        : mapping.speed;\n\n// Always switch BOTH axes to Pattern mode and set Pattern\nout.push(action(\"Axis::MotionProviderBlend::Set\", [L0, 1]));\nout.push(action(\"Axis::MotionProviderBlend::Set\", [R0, 1]));\nout.push(action(\"MotionProvider::Pattern::Pattern::Set\", [L0, \"Triangle\"]));\nout.push(action(\"MotionProvider::Pattern::Pattern::Set\", [R0, \"Triangle\"]));\nout.push(action(\"Axis::MotionProvider::Set\", [L0, \"Pattern\"]));\nout.push(action(\"Axis::MotionProvider::Set\", [R0, \"Pattern\"]));\n\n// Apply speed/min/max to the targeted axis only\nout.push(action(\"MotionProvider::Pattern::Speed::Set\", [targetAxis, effectiveSpeed]));\nout.push(action(\"MotionProvider::Pattern::Minimum::Set\", [targetAxis, mapping.min]));\nout.push(action(\"MotionProvider::Pattern::Maximum::Set\", [targetAxis, mapping.max]));\n\nnode.status({\n    fill: effectiveSpeed > 0.01 ? \"green\" : \"red\",\n    shape: \"dot\",\n    text: `${cmdType.replace(\"_\", \" \")} -> ${targetAxis}: ${mapping.label} (Speed ${effectiveSpeed})`\n});\n\nreturn [out];\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 930,
+        "y": 240,
+        "wires": [
+            [
+                "8afbc049b2ec5491"
+            ]
+        ]
+    },
+    {
+        "id": "75f1c8de5a95a2ac",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "stroker_robot:stroke_speed:medium",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "stroker_robot:stroke_speed:medium",
+        "payloadType": "str",
+        "x": 480,
+        "y": 180,
+        "wires": [
+            [
+                "cc8f2d1ecc191b9f"
+            ]
+        ]
+    },
+    {
+        "id": "37dac0f813895d1f",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "stroker_robot:stroke_speed:fast",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "stroker_robot:stroke_speed:fast",
+        "payloadType": "str",
+        "x": 470,
+        "y": 220,
+        "wires": [
+            [
+                "cc8f2d1ecc191b9f"
+            ]
+        ]
+    },
+    {
+        "id": "4ec01f2de16bd5c9",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "stroker_robot:stroke_speed:stop",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "stroker_robot:stroke_speed:stop",
+        "payloadType": "str",
+        "x": 470,
+        "y": 140,
+        "wires": [
+            [
+                "cc8f2d1ecc191b9f"
+            ]
+        ]
+    },
+    {
+        "id": "8993f0d19d8cf510",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "stroker_robot:stroke_speed:medium",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "stroker_robot:twist_speed:medium",
+        "payloadType": "str",
+        "x": 480,
+        "y": 320,
+        "wires": [
+            [
+                "cc8f2d1ecc191b9f"
+            ]
+        ]
+    },
+    {
+        "id": "31f35f6986e8c414",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "stroker_robot:stroke_speed:fast",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "stroker_robot:twist_speed:fast",
+        "payloadType": "str",
+        "x": 470,
+        "y": 360,
+        "wires": [
+            [
+                "cc8f2d1ecc191b9f"
+            ]
+        ]
+    },
+    {
+        "id": "eaf2d47bd37261c9",
+        "type": "inject",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "stroker_robot:twist_speed:stop",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "stroker_robot:twist_speed:stop",
+        "payloadType": "str",
+        "x": 470,
+        "y": 280,
+        "wires": [
+            [
+                "cc8f2d1ecc191b9f"
+            ]
+        ]
+    },
+    {
+        "id": "8afbc049b2ec5491",
+        "type": "mqtt out",
+        "z": "f37b3fa5bbc5e0b0",
         "name": "",
         "topic": "multifunplayer/actions",
         "qos": "2",
@@ -12,117 +463,32 @@
         "userProps": "",
         "correl": "",
         "expiry": "",
-        "broker": "mqtt_broker",
-        "x": 1380,
-        "y": 1860,
+        "broker": "15376ac01e2f58cc",
+        "x": 1280,
+        "y": 240,
         "wires": []
     },
     {
-        "id": "01d485696a9ca5fe",
-        "type": "function",
-        "z": "2779620a3a814a03",
-        "name": "function 21",
-        "func": "const payload = msg.payload;\nconst out = [];\nconst axisStates = context.get(\"axisStates\") || {};  // Store state per axis\n\n// Default to L0\nconst axis = (payload.Axis || \"L0\").toString();\n\n// Helper to create action message\nfunction actionMessage(action, values) {\n    return {\n        payload: {\n            Action: action,\n            Arguments: values.map(v => ({ Value: v }))\n        }\n    };\n}\n\n// Stop command: stop all tracked axes\nif (payload.Stop === true) {\n    for (const a in axisStates) {\n        out.push(actionMessage(\"Axis::MotionProviderBlend::Set\", [a, 1]));\n        out.push(actionMessage(\"MotionProvider::Pattern::Speed::Set\", [a, 1]));\n        out.push(actionMessage(\"MotionProvider::Pattern::Minimum::Set\", [a, 0]));\n        out.push(actionMessage(\"MotionProvider::Pattern::Maximum::Set\", [a, 0]));\n        axisStates[a].stopped = true;\n    }\n    node.status({ fill: \"red\", shape: \"ring\", text: \"🛑 All axes stopped\" });\n    context.set(\"axisStates\", axisStates);\n    return [out];\n}\n\n// Resume command: resume previously stopped axes with last known values\nif (payload.Resume === true) {\n    for (const a in axisStates) {\n        const state = axisStates[a];\n        if (state.stopped === true) {\n            if (state.motion === \"Pattern\") {\n                out.push(actionMessage(\"Axis::MotionProviderBlend::Set\", [a, 1]));\n                out.push(actionMessage(\"MotionProvider::Pattern::Speed::Set\", [a, state.speed]));\n                out.push(actionMessage(\"MotionProvider::Pattern::Minimum::Set\", [a, state.min]));\n                out.push(actionMessage(\"MotionProvider::Pattern::Maximum::Set\", [a, state.max]));\n                node.status({ fill: \"green\", shape: \"dot\", text: `▶️ Resume ${a}: Pattern ${state.speed} (${state.min}–${state.max})` });\n            } else if (state.motion === \"Funscript\") {\n                out.push(actionMessage(\"MotionProvider::Pattern::Maximum::Set\", [a, 1]));  // restore range\n                out.push(actionMessage(\"Axis::MotionProviderBlend::Set\", [a, 0]));         // funscript mode\n                node.status({ fill: \"blue\", shape: \"dot\", text: `▶️ Resume ${a}: Funscript` });\n            }\n            state.stopped = false;\n        }\n    }\n    context.set(\"axisStates\", axisStates);\n    return [out];\n}\n\n// Normal motion update\nconst motion = payload.Motion || \"Pattern\";\nconst motionMode = motion === \"Funscript\" ? 0 : 1;\n\n// Store/track state\nconst speed = Math.max(0, Math.min(10000, +payload.Speed || 0)) / 100;\nconst min = Math.max(0, Math.min(100, +payload.Min || 0)) / 100;\nconst max = Math.max(0, Math.min(100, +payload.Max || 0)) / 100;\n\naxisStates[axis] = axisStates[axis] || {};\naxisStates[axis].motion = motion;\naxisStates[axis].stopped = false;\n\nout.push(actionMessage(\"Axis::MotionProviderBlend::Set\", [axis, motionMode]));\n\nif (motion === \"Pattern\") {\n    out.push(actionMessage(\"MotionProvider::Pattern::Speed::Set\", [axis, speed]));\n    out.push(actionMessage(\"MotionProvider::Pattern::Minimum::Set\", [axis, min]));\n    out.push(actionMessage(\"MotionProvider::Pattern::Maximum::Set\", [axis, max]));\n\n    axisStates[axis].speed = speed;\n    axisStates[axis].min = min;\n    axisStates[axis].max = max;\n\n    node.status({ fill: \"green\", shape: \"dot\", text: `🟢 ${axis}: Pattern ${speed} (${min}–${max})` });\n} else {\n    node.status({ fill: \"blue\", shape: \"dot\", text: `🔵 ${axis}: Funscript` });\n}\n\n// Save state\ncontext.set(\"axisStates\", axisStates);\n\n// Output all actions as separate MQTT messages\nreturn [out];\n",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 890,
-        "y": 1860,
-        "wires": [
-            [
-                "1b33e19c6d1c1da7"
-            ]
-        ]
+        "id": "5a8ecf42a1c3bea6",
+        "type": "comment",
+        "z": "f37b3fa5bbc5e0b0",
+        "name": "Speed Controller for Linear Type of Toys",
+        "info": "",
+        "x": 1020,
+        "y": 140,
+        "wires": []
     },
     {
-        "id": "1ecfd33826beb6c2",
-        "type": "inject",
-        "z": "2779620a3a814a03",
-        "name": "Stop",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "{   \"Stop\": true }",
-        "payloadType": "json",
-        "x": 570,
-        "y": 1820,
-        "wires": [
-            [
-                "01d485696a9ca5fe"
-            ]
-        ]
-    },
-    {
-        "id": "cf5e5a9f73535091",
-        "type": "inject",
-        "z": "2779620a3a814a03",
-        "name": "speed5",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "{\"Speed\":50,\"Motion\":\"Pattern\",\"Min\":20,\"Max\":80}",
-        "payloadType": "json",
-        "x": 570,
-        "y": 1860,
-        "wires": [
-            [
-                "01d485696a9ca5fe"
-            ]
-        ]
-    },
-    {
-        "id": "c408e795981f732a",
-        "type": "inject",
-        "z": "2779620a3a814a03",
-        "name": "Funscript",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "{\"Motion\":\"Funscript\"}",
-        "payloadType": "json",
-        "x": 580,
-        "y": 1900,
-        "wires": [
-            [
-                "01d485696a9ca5fe"
-            ]
-        ]
-    },
-    {
-        "id": "mqtt_broker",
+        "id": "15376ac01e2f58cc",
         "type": "mqtt-broker",
-        "name": "Local MQTT",
-        "broker": "localhost",
-        "port": "1883",
-        "clientid": "NodeRed_Client",
+        "name": "Mosquitto",
+        "broker": "127.0.0.1",
+        "port": 1883,
+        "clientid": "",
         "autoConnect": true,
         "usetls": false,
-        "protocolVersion": "4",
-        "keepalive": "60",
+        "protocolVersion": 4,
+        "keepalive": 60,
         "cleansession": true,
         "autoUnsubscribe": true,
         "birthTopic": "",
@@ -131,10 +497,13 @@
         "birthPayload": "",
         "birthMsg": {},
         "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
         "closePayload": "",
         "closeMsg": {},
         "willTopic": "",
         "willQos": "0",
+        "willRetain": "false",
         "willPayload": "",
         "willMsg": {},
         "userProps": "",
