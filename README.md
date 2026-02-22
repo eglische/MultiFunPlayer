@@ -9,7 +9,7 @@
 # About
 
 This is a Fork of the MultiFunPlayer - **thank you Yoooi for your work on the original**
-* your MFP can now be controlled by somebody else, or AI - All via a universal input method across LAN and WAN: **have fun via MQTT**
+* your MFP can now be controlled by somebody else, or AI - All via a universal input method across LAN and WAN: **have fun via HTTP API Endpoint or via MQTT**
 
 # Downloads
 
