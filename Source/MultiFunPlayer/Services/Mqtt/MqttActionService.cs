@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 using MQTTnet;
 using MQTTnet.Client;
@@ -9,6 +9,7 @@ using MultiFunPlayer.Common;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using MultiFunPlayer.Remote;
 
 namespace MultiFunPlayer.Mqtt;
 
@@ -20,17 +21,26 @@ public sealed class MqttActionService : IAsyncDisposable
     private readonly IShortcutManager _shortcutManager;
     private readonly string _topic;
     private readonly string _errorTopic;
-    private readonly string _logFilePath = "mqtt-debug-log.txt";
+    private readonly bool _enabled;
     private readonly bool _debug;
+    private readonly bool _autoReconnect;
+    private readonly int _connectTimeoutSeconds;
+    private readonly int _reconnectDelaySeconds;
+    private readonly SemaphoreSlim _reconnectGate = new(1, 1);
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
+    private volatile bool _disposed;
 
-    public MqttActionService(IShortcutActionRunner actionRunner, IShortcutManager shortcutManager)
+    public bool IsConnected => _client.IsConnected;
+
+    public MqttActionService(IShortcutActionRunner actionRunner, IShortcutManager shortcutManager, MqttConfig config)
     {
         _actionRunner = actionRunner;
         _shortcutManager = shortcutManager;
-
-        var config = LoadConfig();
+        _enabled = config.Enabled;
         _debug = config.Debug;
+        _autoReconnect = config.AutoReconnect;
+        _connectTimeoutSeconds = config.ConnectTimeoutSeconds <= 0 ? 8 : config.ConnectTimeoutSeconds;
+        _reconnectDelaySeconds = config.ReconnectDelaySeconds <= 0 ? 5 : config.ReconnectDelaySeconds;
         _topic = config.Topic;
         _errorTopic = config.Topic + "/errors";
 
@@ -57,7 +67,11 @@ public sealed class MqttActionService : IAsyncDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        await _client.ConnectAsync(_options, cancellationToken);
+        if (!_enabled)
+            return;
+
+        if (_debug) RemotePipelineLogger.Log("MQTT-API", "Connect attempt");
+        await ConnectWithTimeoutAsync(cancellationToken);
 
         if (_debug)
             LogDebug("Connected and subscribed to MQTT broker.");
@@ -66,6 +80,7 @@ public sealed class MqttActionService : IAsyncDisposable
     private async Task OnConnected(MqttClientConnectedEventArgs args)
     {
         _logger.Info("Connected to MQTT broker");
+        if (_debug) RemotePipelineLogger.Log("MQTT-API", "Connected to broker");
         var topicFilter = new MqttTopicFilterBuilder()
             .WithTopic(_topic)
             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
@@ -77,21 +92,58 @@ public sealed class MqttActionService : IAsyncDisposable
     private async Task OnDisconnected(MqttClientDisconnectedEventArgs args)
     {
         _logger.Warn("Disconnected from MQTT broker");
-        await Task.Delay(5000);
-        try { await _client.ConnectAsync(_options); }
-        catch (Exception ex) { _logger.Error(ex, "Reconnect failed"); }
+        if (_debug) RemotePipelineLogger.Log("MQTT-API", "Disconnected from broker");
+
+        if (!_autoReconnect || _disposed)
+            return;
+
+        await Task.Delay(TimeSpan.FromSeconds(_reconnectDelaySeconds));
+        try
+        {
+            await ConnectWithTimeoutAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Reconnect failed");
+        }
+    }
+
+    private async Task ConnectWithTimeoutAsync(CancellationToken cancellationToken = default)
+    {
+        if (_client.IsConnected)
+            return;
+
+        await _reconnectGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_client.IsConnected)
+                return;
+
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linkedCts.CancelAfter(TimeSpan.FromSeconds(_connectTimeoutSeconds));
+            await _client.ConnectAsync(_options, linkedCts.Token);
+        }
+        finally
+        {
+            _reconnectGate.Release();
+        }
     }
 
     private async Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs args)
     {
-        string payload = Encoding.UTF8.GetString(args.ApplicationMessage.Payload);
+        var payloadBytes = args.ApplicationMessage.Payload;
+        if (payloadBytes == null || payloadBytes.Length == 0)
+            return;
+
+        string payload = Encoding.UTF8.GetString(payloadBytes);
 
         if (_debug)
-            LogDebug($"Received: {payload}");
+            RemotePipelineLogger.Log("MQTT-API", $"Incoming payload: {payload}");
 
         try
         {
-            LogDebug($"Runner Available Actions: {string.Join(", ", _shortcutManager.AvailableActions)}");
+            if (_debug)
+                LogDebug($"Runner Available Actions: {string.Join(", ", _shortcutManager.AvailableActions)}");
 
             var doc = JsonDocument.Parse(payload);
             var root = doc.RootElement;
@@ -230,17 +282,21 @@ public sealed class MqttActionService : IAsyncDisposable
 
     private async Task TryInvokeAction(string resolvedName, object[] args)
     {
-        LogDebug($"Resolved action: {resolvedName}");
-        LogDebug("Arguments:");
-        for (int i = 0; i < args.Length; i++)
-            LogDebug($"  - {args[i]?.GetType().FullName ?? "null"}: {args[i]}");
+        if (_debug)
+        {
+            LogDebug($"Resolved action: {resolvedName}");
+            LogDebug("Arguments:");
+            for (int i = 0; i < args.Length; i++)
+                LogDebug($"  - {args[i]?.GetType().FullName ?? "null"}: {args[i]}");
+        }
 
         try
         {
             bool success = await _actionRunner.TryInvokeWithFeedbackAsync(resolvedName, args);
             if (success)
             {
-                LogDebug($"Action executed: {resolvedName}({string.Join(", ", args)})");
+                if (_debug)
+                    LogDebug($"Action executed: {resolvedName}({string.Join(", ", args)})");
             }
             else
             {
@@ -266,23 +322,17 @@ public sealed class MqttActionService : IAsyncDisposable
         await _client.PublishAsync(errorPayload);
     }
 
-    private static MqttConfig LoadConfig()
-    {
-        var configText = File.ReadAllText("MQTT.config.json");
-        return JsonSerializer.Deserialize<MqttConfig>(configText)
-               ?? throw new Exception("Invalid MQTT config JSON");
-    }
-
     private void LogDebug(string msg)
     {
+        if (!_debug) return;
         _logger.Debug(msg);
-        File.AppendAllText(_logFilePath, $"[DEBUG] {DateTime.Now:O} {msg}\n");
+        RemotePipelineLogger.Log("MQTT-API", msg);
     }
 
     private void LogError(string msg)
     {
         _logger.Error(msg);
-        File.AppendAllText(_logFilePath, $"[ERROR] {DateTime.Now:O} {msg}\n");
+        if (_debug) RemotePipelineLogger.Log("MQTT-API", "ERROR: " + msg);
     }
 
     private void LogAvailableActions()
@@ -293,12 +343,15 @@ public sealed class MqttActionService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         try { await _client.DisconnectAsync(); } catch { /* ignore */ }
         _client.Dispose();
+        _reconnectGate.Dispose();
     }
 
-    private class MqttConfig
+    public sealed class MqttConfig
     {
+        public bool Enabled { get; set; } = true;
         public string Broker { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
@@ -306,6 +359,9 @@ public sealed class MqttActionService : IAsyncDisposable
         public string ClientId { get; set; }
         public int KeepAliveSeconds { get; set; }
         public bool AutoReconnect { get; set; }
+        public int ConnectTimeoutSeconds { get; set; } = 8;
+        public int ReconnectDelaySeconds { get; set; } = 5;
         public bool Debug { get; set; }
     }
 }
+

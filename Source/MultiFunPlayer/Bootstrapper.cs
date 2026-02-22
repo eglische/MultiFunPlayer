@@ -1,4 +1,4 @@
-﻿using MaterialDesignThemes.Wpf;
+using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
@@ -8,7 +8,9 @@ using MultiFunPlayer.Input.XInput;
 using MultiFunPlayer.MediaSource;
 using MultiFunPlayer.MotionProvider;
 using MultiFunPlayer.Mqtt;
+using MultiFunPlayer.Http;
 using MultiFunPlayer.OutputTarget;
+// using MultiFunPlayer.Voxta; // Disabled for this release
 using MultiFunPlayer.Plugin;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Script.Repository;
@@ -30,6 +32,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -37,9 +41,10 @@ using System.Windows.Input;
 
 namespace MultiFunPlayer;
 
-internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
+internal sealed class Bootstrapper : Bootstrapper<RootViewModel>, IHandle<RemoteSettingsAppliedMessage>
 {
-    private const string SettingsPath = $"{nameof(MultiFunPlayer)}.config.json";
+    private const string SettingsFileName = $"{nameof(MultiFunPlayer)}.config.json";
+    private static readonly string SettingsFilePath = Path.Combine(AppContext.BaseDirectory, SettingsFileName);
     private Logger Logger { get; } = LogManager.GetLogger(nameof(MultiFunPlayer));
 
     static Bootstrapper()
@@ -62,6 +67,7 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
 
         builder.Bind<OutputTargetViewModel>().ToSelf().InSingletonScope();
         builder.Bind<SettingsViewModel>().ToSelf().InSingletonScope();
+        builder.Bind<RemoteSettingsViewModel>().ToSelf().InSingletonScope();
         builder.Bind<ScriptViewModel>().And<IDeviceAxisValueProvider>().To<ScriptViewModel>().InSingletonScope();
 
         builder.Bind<IMediaSource>().ToAllImplementations().InSingletonScope();
@@ -108,7 +114,7 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
         Logger.Debug("Bootstrapper Configure");
         ConfigureJson();
 
-        var settings = SettingsHelper.ReadOrEmpty(SettingsPath);
+        var settings = SettingsHelper.ReadOrEmpty(SettingsFilePath);
         var dirty = ConfigureLogging(settings);
 
         var shortcutManager = Container.Get<IShortcutManager>();
@@ -129,7 +135,7 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
         dirty |= Container.Get<DeviceSettingsPreprocessor>().Preprocess(settings);
 
         if (dirty)
-            SettingsHelper.Write(settings, SettingsPath);
+            SettingsHelper.Write(settings, SettingsFilePath);
 
         Logger.Info("Environment [OSVersion: {0}, CLRVersion: {1}]", Environment.OSVersion, Environment.Version);
         Logger.Info("Assembly [Version: {0}+{1}]", GitVersionInformation.SemVer, GitVersionInformation.FullBuildMetaData);
@@ -206,6 +212,11 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
     }
 
     private MqttActionService _mqttService;
+    private HttpActionService _httpService;
+    // private VoxtaActionService _voxtaService; // Disabled for this release
+    private CancellationTokenSource _networkWatchdogCts;
+    private Task _networkWatchdogTask;
+
     protected override void Launch()
     {
         Logger.Debug("Bootstrapper Launch");
@@ -217,13 +228,14 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
         _ = Container.Get<OutputTargetViewModel>();
         _ = RootViewModel;
 
-        var settings = SettingsHelper.ReadOrEmpty(SettingsPath);
+        var settings = SettingsHelper.ReadOrEmpty(SettingsFilePath);
         var eventAggregator = Container.Get<IEventAggregator>();
+        eventAggregator.Subscribe(this);
         eventAggregator.Publish(new SettingsMessage(settings, SettingsAction.Loading));
 
         DialogHelper.Initialize(Container);
 
-        InitializeMqtt(); // ⬅️ Add this line
+        StartNetworkWatchdog();
 
         base.Launch();
     }
@@ -244,10 +256,23 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
     {
         Logger.Debug("Bootstrapper OnWindowClosing");
 
-        var settings = SettingsHelper.ReadOrEmpty(SettingsPath);
+        StopNetworkWatchdog();
+
+        var settings = SettingsHelper.ReadOrEmpty(SettingsFilePath);
         var eventAggregator = Container.Get<IEventAggregator>();
         eventAggregator.Publish(new SettingsMessage(settings, SettingsAction.Saving));
-        SettingsHelper.Write(settings, SettingsPath);
+        SettingsHelper.Write(settings, SettingsFilePath);
+    }
+
+    public void Handle(RemoteSettingsAppliedMessage message)
+    {
+        Logger.Info("Remote settings saved; restarting remote services to apply changes");
+
+        Task.Run(() =>
+        {
+            StopNetworkWatchdog();
+            StartNetworkWatchdog();
+        });
     }
 
     private void ConfigureJson()
@@ -319,21 +344,178 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
         Stylet.Logging.LogManager.Enabled = true;
     }
 
-    private async void InitializeMqtt()
+    private void StartNetworkWatchdog()
     {
+        _networkWatchdogCts = new CancellationTokenSource();
+        _networkWatchdogTask = Task.Run(() => RunNetworkWatchdogAsync(_networkWatchdogCts.Token));
+    }
+
+    private void StopNetworkWatchdog()
+    {
+        try
+        {
+            _networkWatchdogCts?.Cancel();
+            _networkWatchdogTask?.GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(ex, "Failed to stop network watchdog cleanly");
+        }
+
+        // try { _voxtaService?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { } // Disabled for this release
+        try { _httpService?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
+        try { _mqttService?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
+    }
+
+    private async Task RunNetworkWatchdogAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await EnsureMqttRunningAsync(cancellationToken);
+            await EnsureHttpRunningAsync(cancellationToken);
+            // await EnsureVoxtaRunningAsync(cancellationToken); // Disabled for this release
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task EnsureMqttRunningAsync(CancellationToken cancellationToken)
+    {
+        if (_mqttService?.IsConnected == true)
+            return;
+
         try
         {
             var runner = Container.Get<IShortcutActionRunner>();
             var shortcutManager = Container.Get<IShortcutManager>();
 
-            _mqttService = new MqttActionService(runner, shortcutManager);
-            await _mqttService.StartAsync();
+            if (_mqttService == null)
+                _mqttService = new MqttActionService(runner, shortcutManager, GetMqttConfig());
 
-            Logger.Info("MqttActionService started");
+            await _mqttService.StartAsync(cancellationToken);
+            Logger.Info("MqttActionService ready");
         }
         catch (Exception ex)
         {
-            Logger.Error(ex, "Failed to start MqttActionService");
+            Logger.Error(ex, "MqttActionService health-check start failed");
+        }
+    }
+
+    private async Task EnsureHttpRunningAsync(CancellationToken cancellationToken)
+    {
+        if (_httpService?.IsRunning == true)
+            return;
+
+        try
+        {
+            var runner = Container.Get<IShortcutActionRunner>();
+            var shortcutManager = Container.Get<IShortcutManager>();
+
+            if (_httpService == null)
+                _httpService = new HttpActionService(runner, shortcutManager, GetHttpConfig());
+
+            await _httpService.StartAsync(cancellationToken);
+            Logger.Info("HttpActionService ready on {Prefix}", _httpService.Prefix);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "HttpActionService health-check start failed");
+        }
+    }
+
+    // Voxta pipeline disabled for this release.
+    // private async Task EnsureVoxtaRunningAsync(CancellationToken cancellationToken)
+    // {
+    // }
+
+    private HttpActionService.HttpConfig GetHttpConfig()
+    {
+        var settings = SettingsHelper.ReadOrEmpty(SettingsFilePath);
+        var remote = settings["Remote"] as JObject;
+        var http = remote?["Http"] as JObject;
+
+        var accessToken = http?["AccessMode"];
+        bool? openToLan = accessToken?.Type == JTokenType.Boolean
+            ? accessToken.Value<bool>()
+            : accessToken?.Type == JTokenType.String
+                ? string.Equals(accessToken.Value<string>(), "Lan", StringComparison.OrdinalIgnoreCase)
+                : null;
+
+        var host = openToLan switch
+        {
+            true => "+",
+            false => "127.0.0.1",
+            null => (http?.Value<string>("Host") ?? "+")
+        };
+
+        var encrypted = http?.Value<string>("PasswordEncrypted");
+        var password = DecryptSecret(encrypted) ?? http?.Value<string>("Password") ?? string.Empty;
+
+        return new HttpActionService.HttpConfig
+        {
+            Enabled = http?.Value<bool?>("Enabled") ?? false,
+            Host = host,
+            Port = http?.Value<int?>("Port") ?? 53123,
+            PrefixPath = http?.Value<string>("PrefixPath") ?? "/api/v1/",
+            Debug = http?.Value<bool?>("Debug") ?? false,
+            AuthEnabled = http?.Value<bool?>("AuthEnabled") ?? false,
+            Username = http?.Value<string>("Username") ?? string.Empty,
+            Password = password,
+        };
+    }
+
+    private MqttActionService.MqttConfig GetMqttConfig()
+    {
+        var settings = SettingsHelper.ReadOrEmpty(SettingsFilePath);
+        var remote = settings["Remote"] as JObject;
+        var mqtt = remote?["Mqtt"] as JObject;
+
+        var mqttPassword = DecryptSecret(mqtt?.Value<string>("PasswordEncrypted"))
+                           ?? mqtt?.Value<string>("Password")
+                           ?? "mqtt_pass";
+
+        return new MqttActionService.MqttConfig
+        {
+            Enabled = mqtt?.Value<bool?>("Enabled") ?? false,
+            Broker = mqtt?.Value<string>("Broker") ?? "localhost:1883",
+            Username = mqtt?.Value<string>("Username") ?? "mqtt_user",
+            Password = mqttPassword,
+            Topic = mqtt?.Value<string>("Topic") ?? "multifunplayer/actions",
+            ClientId = mqtt?.Value<string>("ClientId") ?? "MultiFunMQTTClient",
+            KeepAliveSeconds = mqtt?.Value<int?>("KeepAliveSeconds") ?? 60,
+            AutoReconnect = mqtt?.Value<bool?>("AutoReconnect") ?? true,
+            ConnectTimeoutSeconds = mqtt?.Value<int?>("ConnectTimeoutSeconds") ?? 8,
+            ReconnectDelaySeconds = mqtt?.Value<int?>("ReconnectDelaySeconds") ?? 5,
+            Debug = mqtt?.Value<bool?>("Debug") ?? false,
+        };
+    }
+
+    // Voxta config disabled for this release.
+    // private VoxtaActionService.VoxtaConfig GetVoxtaConfig()
+    // {
+    // }
+
+    private static string DecryptSecret(string encrypted)
+    {
+        if (string.IsNullOrWhiteSpace(encrypted))
+            return null;
+
+        try
+        {
+            var protectedBytes = Convert.FromBase64String(encrypted);
+            var bytes = ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(bytes);
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -376,3 +558,4 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
         return dirty;
     }
 }
+

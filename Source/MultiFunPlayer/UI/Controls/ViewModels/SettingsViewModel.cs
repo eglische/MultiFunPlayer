@@ -10,6 +10,7 @@ internal sealed class SettingsViewModel : Conductor<IScreen>.Collection.OneActiv
     [Inject] public ThemeSettingsViewModel Theme { get; set; }
     [Inject] public InputSettingsViewModel Input { get; set; }
     [Inject] public ShortcutSettingsViewModel Shortcut { get; set; }
+    [Inject] public RemoteSettingsViewModel Remote { get; set; }
 
     protected override void OnInitialActivate()
     {
@@ -18,6 +19,7 @@ internal sealed class SettingsViewModel : Conductor<IScreen>.Collection.OneActiv
         Items.Add(Theme);
         Items.Add(Input);
         Items.Add(Shortcut);
+        Items.Add(Remote);
 
         base.OnInitialActivate();
     }

@@ -40,6 +40,7 @@
     <PackageReference Include="MaterialDesignThemes.MahApps" Version="0.2.6" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.*" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.*" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.12" />
     <PackageReference Include="MQTTnet" Version="4.0.0.167" />
     <PackageReference Include="NETStandard.Library" Version="2.0.3" />
     <PackageReference Include="Newtonsoft.Json" Version="13.*" />
@@ -54,9 +55,4 @@
     <PackageReference Include="Vortice.XInput" Version="3.5.0" />
   </ItemGroup>
     
-  <ItemGroup>
-    <None Update="MQTT.config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 </Project>

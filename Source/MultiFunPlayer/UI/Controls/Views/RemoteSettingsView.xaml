@@ -1,0 +1,62 @@
+<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.RemoteSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:s="https://github.com/canton7/Stylet"
+             d:DesignHeight="450"
+             d:DesignWidth="800"
+             x:ClassModifier="internal"
+             mc:Ignorable="d">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="20">
+            <StackPanel>
+                <TextBlock FontWeight="Bold" Margin="0 0 0 8" Text="HTTP API"/>
+                <CheckBox Margin="0 0 0 8" Content="Enabled" IsChecked="{Binding HttpEnabled, UpdateSourceTrigger=PropertyChanged}"/>
+                <StackPanel Visibility="{Binding HttpEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <CheckBox Margin="0 0 0 6" Content="Open to LAN (otherwise local only)" IsChecked="{Binding HttpOpenToLan, UpdateSourceTrigger=PropertyChanged}"/>
+                    <DockPanel Margin="0 0 0 6">
+                        <TextBlock Width="140" VerticalAlignment="Center" Text="Port:"/>
+                        <TextBox Text="{Binding HttpPort, UpdateSourceTrigger=PropertyChanged}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0 0 0 6">
+                        <TextBlock Width="140" VerticalAlignment="Center" Text="Prefix path:"/>
+                        <TextBox Text="{Binding HttpPrefixPath, UpdateSourceTrigger=PropertyChanged}"/>
+                    </DockPanel>
+                    <CheckBox Margin="0 0 0 6" Content="Require Basic Auth" IsChecked="{Binding HttpAuthEnabled, UpdateSourceTrigger=PropertyChanged}"/>
+                    <StackPanel Visibility="{Binding HttpAuthEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <DockPanel Margin="0 0 0 6">
+                            <TextBlock Width="140" VerticalAlignment="Center" Text="Basic auth user:"/>
+                            <TextBox Text="{Binding HttpUsername, UpdateSourceTrigger=PropertyChanged}"/>
+                        </DockPanel>
+                        <DockPanel Margin="0 0 0 6">
+                            <TextBlock Width="140" VerticalAlignment="Center" Text="Basic auth pass:"/>
+                            <PasswordBox x:Name="HttpPasswordBox" PasswordChanged="HttpPasswordBox_OnPasswordChanged"/>
+                        </DockPanel>
+                    </StackPanel>
+                    <CheckBox Margin="0 0 0 12" Content="Debug logging" IsChecked="{Binding HttpDebug, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+
+                <TextBlock FontWeight="Bold" Margin="0 8 0 8" Text="MQTT"/>
+                <CheckBox Margin="0 0 0 8" Content="Enabled" IsChecked="{Binding MqttEnabled, UpdateSourceTrigger=PropertyChanged}"/>
+                <StackPanel Visibility="{Binding MqttEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <DockPanel Margin="0 0 0 6"><TextBlock Width="140" VerticalAlignment="Center" Text="Broker:"/><TextBox Text="{Binding MqttBroker}"/></DockPanel>
+                    <DockPanel Margin="0 0 0 6"><TextBlock Width="140" VerticalAlignment="Center" Text="Username:"/><TextBox Text="{Binding MqttUsername}"/></DockPanel>
+                    <DockPanel Margin="0 0 0 6"><TextBlock Width="140" VerticalAlignment="Center" Text="Password:"/><PasswordBox x:Name="MqttPasswordBox" PasswordChanged="MqttPasswordBox_OnPasswordChanged"/></DockPanel>
+                    <DockPanel Margin="0 0 0 6"><TextBlock Width="140" VerticalAlignment="Center" Text="Topic:"/><TextBox Text="{Binding MqttTopic}"/></DockPanel>
+                    <DockPanel Margin="0 0 0 6"><TextBlock Width="140" VerticalAlignment="Center" Text="Client ID:"/><TextBox Text="{Binding MqttClientId}"/></DockPanel>
+                    <DockPanel Margin="0 0 0 6"><TextBlock Width="140" VerticalAlignment="Center" Text="KeepAlive (s):"/><TextBox Text="{Binding MqttKeepAliveSeconds}"/></DockPanel>
+                    <DockPanel Margin="0 0 0 6"><TextBlock Width="140" VerticalAlignment="Center" Text="Connect timeout (s):"/><TextBox Text="{Binding MqttConnectTimeoutSeconds}"/></DockPanel>
+                    <DockPanel Margin="0 0 0 6"><TextBlock Width="140" VerticalAlignment="Center" Text="Reconnect delay (s):"/><TextBox Text="{Binding MqttReconnectDelaySeconds}"/></DockPanel>
+                    <CheckBox Margin="0 0 0 6" Content="Auto reconnect" IsChecked="{Binding MqttAutoReconnect}"/>
+                    <CheckBox Margin="0 0 0 12" Content="Debug logging" IsChecked="{Binding MqttDebug}"/>
+                </StackPanel>
+
+                <!-- Voxta section disabled for this release -->
+
+                <Button Width="120" HorizontalAlignment="Left" Content="Save" Command="{s:Action Save}"/>
+                <TextBlock Margin="0 8 0 0" Opacity="0.7" Text="Changes are applied on Save (remote services restart automatically)."/>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>
