@@ -1,22 +1,39 @@
+using PropertyChanged;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Settings;
 using Newtonsoft.Json.Linq;
 using Stylet;
 using System.IO;
+using System.Net.NetworkInformation;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace MultiFunPlayer.UI.Controls.ViewModels;
 
+[AddINotifyPropertyChangedInterface]
 internal sealed class RemoteSettingsViewModel : Screen, IHandle<SettingsMessage>
 {
     private const string SettingsFileName = $"{nameof(MultiFunPlayer)}.config.json";
     private static readonly string SettingsFilePath = Path.Combine(AppContext.BaseDirectory, SettingsFileName);
+    public const string HttpAccessModeLocalOnly = "LocalOnly";
+    public const string HttpAccessModeOpenToLan = "OpenToLan";
+    public const string HttpAccessModeSpecificHost = "SpecificHost";
 
     private readonly IEventAggregator _eventAggregator;
 
     public bool HttpEnabled { get; set; } = false;
-    public bool HttpOpenToLan { get; set; } = false;
+    [OnChangedMethod(nameof(EnsureHttpBindHostDefault))]
+    public string HttpAccessMode { get; set; } = HttpAccessModeLocalOnly;
+    [OnChangedMethod(nameof(EnsureHttpBindHostDefault))]
+    [DependsOn(nameof(HttpAccessMode))]
+    public string HttpBindHost { get; set; } = GetSuggestedHttpBindHost();
+    public bool HttpOpenToLan
+    {
+        get => HttpAccessMode == HttpAccessModeOpenToLan;
+        set => HttpAccessMode = value ? HttpAccessModeOpenToLan : HttpAccessModeLocalOnly;
+    }
+    [DependsOn(nameof(HttpAccessMode))]
+    public bool HttpUsesCustomHost => HttpAccessMode == HttpAccessModeSpecificHost;
     public int HttpPort { get; set; } = 53123;
     public string HttpPrefixPath { get; set; } = "/api/v1/";
     public bool HttpDebug { get; set; } = false;
@@ -60,7 +77,8 @@ internal sealed class RemoteSettingsViewModel : Screen, IHandle<SettingsMessage>
             ["Http"] = new JObject
             {
                 ["Enabled"] = HttpEnabled,
-                ["AccessMode"] = HttpOpenToLan,
+                ["AccessMode"] = HttpAccessMode,
+                ["Host"] = HttpBindHost?.Trim(),
                 ["Port"] = HttpPort,
                 ["PrefixPath"] = HttpPrefixPath,
                 ["Debug"] = HttpDebug,
@@ -113,12 +131,19 @@ internal sealed class RemoteSettingsViewModel : Screen, IHandle<SettingsMessage>
             HttpEnabled = http?.Value<bool?>("Enabled") ?? HttpEnabled;
             var accessToken = http?["AccessMode"];
             if (accessToken?.Type == JTokenType.Boolean)
-                HttpOpenToLan = accessToken.Value<bool>();
+                HttpAccessMode = accessToken.Value<bool>() ? HttpAccessModeOpenToLan : HttpAccessModeLocalOnly;
             else
             {
                 var accessMode = http?.Value<string>("AccessMode");
-                HttpOpenToLan = string.Equals(accessMode, "Lan", StringComparison.OrdinalIgnoreCase);
+                HttpAccessMode = accessMode switch
+                {
+                    HttpAccessModeSpecificHost => HttpAccessModeSpecificHost,
+                    HttpAccessModeOpenToLan => HttpAccessModeOpenToLan,
+                    _ when string.Equals(accessMode, "Lan", StringComparison.OrdinalIgnoreCase) => HttpAccessModeOpenToLan,
+                    _ => HttpAccessModeLocalOnly
+                };
             }
+            HttpBindHost = http?.Value<string>("Host") ?? HttpBindHost;
             HttpPort = http?.Value<int?>("Port") ?? HttpPort;
             HttpPrefixPath = http?.Value<string>("PrefixPath") ?? HttpPrefixPath;
             HttpDebug = http?.Value<bool?>("Debug") ?? HttpDebug;
@@ -131,7 +156,14 @@ internal sealed class RemoteSettingsViewModel : Screen, IHandle<SettingsMessage>
             // Backward-compatible host mapping to access mode
             var oldHost = http?.Value<string>("Host");
             if (!string.IsNullOrWhiteSpace(oldHost) && http?["AccessMode"] == null)
-                HttpOpenToLan = oldHost != "127.0.0.1";
+            {
+                HttpAccessMode = oldHost == "127.0.0.1"
+                    ? HttpAccessModeLocalOnly
+                    : oldHost is "+" or "*" or "0.0.0.0" or "[::]"
+                        ? HttpAccessModeOpenToLan
+                        : HttpAccessModeSpecificHost;
+                HttpBindHost = oldHost;
+            }
 
             MqttEnabled = mqtt?.Value<bool?>("Enabled") ?? MqttEnabled;
             MqttBroker = mqtt?.Value<string>("Broker") ?? MqttBroker;
@@ -183,6 +215,42 @@ internal sealed class RemoteSettingsViewModel : Screen, IHandle<SettingsMessage>
         {
             return null;
         }
+    }
+
+    private void EnsureHttpBindHostDefault()
+    {
+        if (HttpAccessMode == HttpAccessModeSpecificHost && string.IsNullOrWhiteSpace(HttpBindHost))
+            HttpBindHost = GetSuggestedHttpBindHost();
+    }
+
+    private static string GetSuggestedHttpBindHost()
+    {
+        static IEnumerable<string> GetCandidates(IEnumerable<NetworkInterface> interfaces)
+            => interfaces
+               .Select(i => i.GetIPProperties())
+               .Where(p => p.GatewayAddresses.Any(g => g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork))
+               .SelectMany(p => p.UnicastAddresses)
+               .Select(a => a.Address)
+               .Where(address => address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                                 && !System.Net.IPAddress.IsLoopback(address)
+                                 && !address.Equals(System.Net.IPAddress.Any))
+               .Select(address => address.ToString());
+
+        var interfaces = NetworkInterface.GetAllNetworkInterfaces()
+                                         .Where(i => i.OperationalStatus == OperationalStatus.Up
+                                                     && i.NetworkInterfaceType != NetworkInterfaceType.Loopback
+                                                     && i.NetworkInterfaceType != NetworkInterfaceType.Tunnel)
+                                         .ToArray();
+
+        return GetCandidates(interfaces).FirstOrDefault()
+               ?? NetUtils.GetAllLocalAddresses()
+                          .Where(address => address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                                            && !System.Net.IPAddress.IsLoopback(address)
+                                            && !address.Equals(System.Net.IPAddress.Any))
+                          .Select(address => address.ToString())
+                          .OrderBy(address => address)
+                          .FirstOrDefault()
+               ?? "127.0.0.1";
     }
 }
 

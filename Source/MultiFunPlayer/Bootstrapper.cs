@@ -365,6 +365,12 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>, IHandle<Remote
         // try { _voxtaService?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { } // Disabled for this release
         try { _httpService?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
         try { _mqttService?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
+
+        _httpService = null;
+        _mqttService = null;
+        _networkWatchdogTask = null;
+        _networkWatchdogCts?.Dispose();
+        _networkWatchdogCts = null;
     }
 
     private async Task RunNetworkWatchdogAsync(CancellationToken cancellationToken)
@@ -442,17 +448,18 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>, IHandle<Remote
         var http = remote?["Http"] as JObject;
 
         var accessToken = http?["AccessMode"];
-        bool? openToLan = accessToken?.Type == JTokenType.Boolean
-            ? accessToken.Value<bool>()
-            : accessToken?.Type == JTokenType.String
-                ? string.Equals(accessToken.Value<string>(), "Lan", StringComparison.OrdinalIgnoreCase)
-                : null;
-
-        var host = openToLan switch
+        var savedHost = http?.Value<string>("Host");
+        var host = accessToken?.Type switch
         {
-            true => "+",
-            false => "127.0.0.1",
-            null => (http?.Value<string>("Host") ?? "+")
+            JTokenType.Boolean => accessToken.Value<bool>() ? "+" : "127.0.0.1",
+            JTokenType.String => accessToken.Value<string>() switch
+            {
+                "SpecificHost" => string.IsNullOrWhiteSpace(savedHost) ? "127.0.0.1" : savedHost,
+                "OpenToLan" => "+",
+                var mode when string.Equals(mode, "Lan", StringComparison.OrdinalIgnoreCase) => "+",
+                _ => "127.0.0.1"
+            },
+            _ => savedHost ?? "+"
         };
 
         var encrypted = http?.Value<string>("PasswordEncrypted");

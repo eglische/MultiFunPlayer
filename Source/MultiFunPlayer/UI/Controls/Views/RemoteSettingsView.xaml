@@ -14,7 +14,18 @@
                 <TextBlock FontWeight="Bold" Margin="0 0 0 8" Text="HTTP API"/>
                 <CheckBox Margin="0 0 0 8" Content="Enabled" IsChecked="{Binding HttpEnabled, UpdateSourceTrigger=PropertyChanged}"/>
                 <StackPanel Visibility="{Binding HttpEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <CheckBox Margin="0 0 0 6" Content="Open to LAN (otherwise local only)" IsChecked="{Binding HttpOpenToLan, UpdateSourceTrigger=PropertyChanged}"/>
+                    <DockPanel Margin="0 0 0 6">
+                        <TextBlock Width="140" VerticalAlignment="Center" Text="Access mode:"/>
+                        <ComboBox SelectedValue="{Binding HttpAccessMode, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Tag">
+                            <ComboBoxItem Tag="LocalOnly" Content="Local only"/>
+                            <ComboBoxItem Tag="OpenToLan" Content="Open to LAN"/>
+                            <ComboBoxItem Tag="SpecificHost" Content="Specific host/IP"/>
+                        </ComboBox>
+                    </DockPanel>
+                    <DockPanel Margin="0 0 0 6" Visibility="{Binding HttpUsesCustomHost, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Width="140" VerticalAlignment="Center" Text="Bind host/IP:"/>
+                        <TextBox Text="{Binding HttpBindHost, UpdateSourceTrigger=PropertyChanged}"/>
+                    </DockPanel>
                     <DockPanel Margin="0 0 0 6">
                         <TextBlock Width="140" VerticalAlignment="Center" Text="Port:"/>
                         <TextBox Text="{Binding HttpPort, UpdateSourceTrigger=PropertyChanged}"/>

@@ -115,9 +115,21 @@ public sealed class HttpActionService : IAsyncDisposable
                 return;
             }
 
+            if (method == "GET" && route.EndsWith("/command", StringComparison.OrdinalIgnoreCase))
+            {
+                await WriteJsonAsync(context.Response, 200, HttpFriendlyCommand.Describe());
+                return;
+            }
+
             if (method == "POST" && route.EndsWith("/actions/invoke", StringComparison.OrdinalIgnoreCase))
             {
                 await HandleInvokeAsync(context, cancellationToken);
+                return;
+            }
+
+            if (method == "POST" && route.EndsWith("/command", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleFriendlyCommandAsync(context, cancellationToken);
                 return;
             }
 
@@ -221,6 +233,54 @@ public sealed class HttpActionService : IAsyncDisposable
 
             await WriteJsonAsync(context.Response, 200, new { ok = true, action = resolvedName });
             if (_debug) RemotePipelineLogger.Log("HTTP-API", $"Invoked {resolvedName} ({args.Length} args)");
+        }
+    }
+
+    private async Task HandleFriendlyCommandAsync(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding ?? Encoding.UTF8);
+        var payload = await reader.ReadToEndAsync(cancellationToken);
+
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(payload);
+        }
+        catch (Exception ex)
+        {
+            await WriteJsonAsync(context.Response, 400, new { error = $"Invalid JSON payload: {ex.Message}" });
+            return;
+        }
+
+        using (doc)
+        {
+            if (!HttpFriendlyCommand.TryCreate(doc.RootElement, out var plan, out var error))
+            {
+                await WriteJsonAsync(context.Response, 400, new { error, help = HttpFriendlyCommand.Describe() });
+                return;
+            }
+
+            foreach (var invocation in plan.Invocations)
+            {
+                var success = await _actionRunner.TryInvokeWithFeedbackAsync(invocation.ActionName, invocation.Arguments);
+                if (!success)
+                {
+                    await WriteJsonAsync(context.Response, 400, new
+                    {
+                        ok = false,
+                        error = $"Invocation failed for action {invocation.ActionName}",
+                        command = plan.Summary
+                    });
+                    return;
+                }
+            }
+
+            await WriteJsonAsync(context.Response, 200, new
+            {
+                ok = true,
+                command = plan.Summary,
+                actions = plan.Invocations.Select(x => x.ActionName).ToArray()
+            });
         }
     }
 

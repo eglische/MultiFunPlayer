@@ -57,16 +57,16 @@ internal abstract class AbstractMotionProvider : Screen, IMotionProvider
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Speed::Offset",
             s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
             s => s.WithLabel("Value offset").AsNumericUpDown(interval: 0.01, stringFormat: "{0:P0}"),
-            (axis, offset) => UpdateProperty(axis, p => p.Speed = Math.Max(0.01, p.Speed + offset)));
+            (axis, offset) => UpdateProperty(axis, p => p.Speed = Math.Max(0, p.Speed + offset)));
 
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Speed::Set",
             s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0.01, interval: 0.01, stringFormat: "{0:P0}"),
-            (axis, value) => UpdateProperty(axis, p => p.Speed = Math.Max(0.01, value)));
+            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0, interval: 0.01, stringFormat: "{0:P0}"),
+            (axis, value) => UpdateProperty(axis, p => p.Speed = Math.Max(0, value)));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis>($"MotionProvider::{name}::Speed::Drive",
             s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            (data, axis) => UpdateProperty(axis, p => p.Speed = Math.Max(0.01, data.ApplyTo(p.Speed))));
+            (data, axis) => UpdateProperty(axis, p => p.Speed = Math.Max(0, data.ApplyTo(p.Speed))));
         #endregion
 
         #region MotionProvider::Minimum

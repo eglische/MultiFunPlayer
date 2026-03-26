@@ -15,7 +15,7 @@ internal sealed class InformationViewModel : Screen
 {
     private static readonly Uri GitHubApiBase = new("https://api.github.com/repos/Yoooi0/MultiFunPlayer/");
 
-    public string VersionText => $"v{GitVersionInformation.InformationalVersion}";
+    public string VersionText => $"v{GitVersionInformation.MajorMinorPatch}";
     public UpdateData Update { get; private set; }
 
     public InformationViewModel()

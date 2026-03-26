@@ -1,0 +1,482 @@
+[
+  {
+    "id": "tab_mfp_friendly_http",
+    "type": "tab",
+    "label": "MFP Friendly HTTP",
+    "disabled": false,
+    "info": "Inject buttons for MultiFunPlayer /api/v1/command"
+  },
+  {
+    "id": "http_mfp_friendly",
+    "type": "http request",
+    "z": "tab_mfp_friendly_http",
+    "name": "MFP POST /command",
+    "method": "POST",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "http://localhost:53123/api/v1/command",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": true,
+    "headers": [
+      {
+        "keyType": "other",
+        "keyValue": "Content-Type",
+        "valueType": "other",
+        "valueValue": "application/json"
+      }
+    ],
+    "x": 780,
+    "y": 380,
+    "wires": [
+      [
+        "debug_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "debug_mfp_friendly",
+    "type": "debug",
+    "z": "tab_mfp_friendly_http",
+    "name": "MFP Response",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": true,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "payload.command",
+    "statusType": "msg",
+    "x": 1020,
+    "y": 380,
+    "wires": []
+  },
+  {
+    "id": "inj_mode_funscript",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "Mode: Funscript",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Mode\":\"funscript\"}",
+    "payloadType": "json",
+    "x": 180,
+    "y": 80,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_mode_motionprovider",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "Mode: MotionProvider Sine",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Mode\":\"motionprovider\",\"Pattern\":\"Sine\"}",
+    "payloadType": "json",
+    "x": 220,
+    "y": 120,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_mode_motionprovider_triangle",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "Mode: MotionProvider Triangle",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Mode\":\"motionprovider\",\"Pattern\":\"Triangle\"}",
+    "payloadType": "json",
+    "x": 235,
+    "y": 160,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_l0_stop",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "L0 Stop",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"L0\",\"Speed\":\"stop\"}",
+    "payloadType": "json",
+    "x": 130,
+    "y": 240,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_l0_slow",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "L0 Slow",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"L0\",\"Speed\":\"slow\"}",
+    "payloadType": "json",
+    "x": 130,
+    "y": 280,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_l0_medium",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "L0 Medium",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"L0\",\"Speed\":\"medium\"}",
+    "payloadType": "json",
+    "x": 140,
+    "y": 320,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_l0_fast",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "L0 Fast",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"L0\",\"Speed\":\"fast\"}",
+    "payloadType": "json",
+    "x": 130,
+    "y": 360,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_l0_500",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "L0 Numeric 500",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"L0\",\"Speed\":500}",
+    "payloadType": "json",
+    "x": 155,
+    "y": 400,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_r0_stop",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "R0 Stop",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"R0\",\"Speed\":\"stop\"}",
+    "payloadType": "json",
+    "x": 130,
+    "y": 480,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_r0_slow",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "R0 Slow",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"R0\",\"Speed\":\"slow\"}",
+    "payloadType": "json",
+    "x": 130,
+    "y": 520,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_r0_medium",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "R0 Medium",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"R0\",\"Speed\":\"medium\"}",
+    "payloadType": "json",
+    "x": 140,
+    "y": 560,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_r0_fast",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "R0 Fast",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"R0\",\"Speed\":\"fast\"}",
+    "payloadType": "json",
+    "x": 130,
+    "y": 600,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_r0_500",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "R0 Numeric 500",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"R0\",\"Speed\":500}",
+    "payloadType": "json",
+    "x": 155,
+    "y": 640,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_l0_triangle_crop",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "L0 Triangle Crop 0.15-0.85",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"L0\",\"Speed\":\"medium\",\"Pattern\":\"Triangle\",\"Min\":0.15,\"Max\":0.85}",
+    "payloadType": "json",
+    "x": 260,
+    "y": 720,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_r0_sine_crop",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "R0 Sine Crop 0.25-0.75",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Axis\":\"R0\",\"Speed\":\"medium\",\"Pattern\":\"Sine\",\"Min\":0.25,\"Max\":0.75}",
+    "payloadType": "json",
+    "x": 245,
+    "y": 760,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_legacy_stroke",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "Legacy stroke_speed:medium",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Command\":\"stroker_robot:stroke_speed:medium\"}",
+    "payloadType": "json",
+    "x": 240,
+    "y": 840,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  },
+  {
+    "id": "inj_legacy_twist",
+    "type": "inject",
+    "z": "tab_mfp_friendly_http",
+    "name": "Legacy twist_speed:fast",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"Command\":\"stroker_robot:twist_speed:fast\"}",
+    "payloadType": "json",
+    "x": 225,
+    "y": 880,
+    "wires": [
+      [
+        "http_mfp_friendly"
+      ]
+    ]
+  }
+]
