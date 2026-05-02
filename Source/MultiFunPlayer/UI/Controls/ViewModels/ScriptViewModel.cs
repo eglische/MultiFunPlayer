@@ -771,7 +771,10 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
         => await AxisStates[axis].ScriptSnapshotEvent.WaitOneAsync(context, cancellationToken);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private double GetSyncProgress(double time, double duration) => MathUtils.Clamp01(Math.Pow(2, -10 * MathUtils.Clamp01(time / duration)));
+    private double GetSyncProgress(double time, double duration)
+        => duration <= 0
+            ? 1
+            : MathUtils.Clamp01(Math.Pow(2, -10 * MathUtils.Clamp01(time / duration)));
 
     private void ResetSync(bool isSyncing = true, params DeviceAxis[] axes) => ResetSync(isSyncing, axes?.AsEnumerable());
     private void ResetSync(bool isSyncing = true, IEnumerable<DeviceAxis> axes = null)
@@ -793,7 +796,8 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
         NotifyOfPropertyChange(nameof(SyncProgress));
     }
 
-    private void ResetSyncNoLock(AxisState state, bool isSyncing = true) => state.SyncTime = isSyncing ? SyncSettings.Duration : 0;
+    private void ResetSyncNoLock(AxisState state, bool isSyncing = true)
+        => state.SyncTime = isSyncing && SyncSettings.Duration > 0 ? SyncSettings.Duration : 0;
     #endregion
 
     #region UI Common

@@ -129,7 +129,7 @@
                                                     material:SliderAssist.OnlyShowFocusVisualWhileDragging="True"
                                                     IsSnapToTickEnabled="True"
                                                     Maximum="8"
-                                                    Minimum="0.5"
+                                                    Minimum="0"
                                                     TickFrequency="0.5"
                                                     Value="{Binding SyncSettings.Duration}"/>
                                         </DockPanel>
